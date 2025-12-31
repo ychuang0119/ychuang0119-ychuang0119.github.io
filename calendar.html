@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>個人萬年曆 (含記事與備份)</title>
+    <script src="https://cdn.jsdelivr.net/npm/lunar-javascript/lunar.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --bg-color: #f5f7fa;
+            --border-color: #ddd;
+            --text-color: #333;
+            --holiday-color: #e74c3c;
+            --weekend-color: #27ae60;
+        }
+
+        body {
+            font-family: "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1000px;
+            background: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            margin: 20px 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header Controls */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .month-year-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #357abd;
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .btn-outline:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .io-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Calendar Grid */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            border-top: 1px solid var(--border-color);
+            border-left: 1px solid var(--border-color);
+        }
+
+        .day-cell, .week-header {
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 5px;
+            min-height: 100px;
+            position: relative;
+            background: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .week-header {
+            min-height: auto;
+            text-align: center;
+            font-weight: bold;
+            background-color: #eee;
+            padding: 10px 0;
+        }
+
+        .day-cell:hover {
+            background-color: #f0f8ff;
+        }
+
+        .day-cell.today {
+            background-color: #fff9c4;
+        }
+
+        .day-cell.other-month {
+            background-color: #f9f9f9;
+            color: #ccc;
+            pointer-events: none;
+        }
+
+        /* Date Content Styling */
+        .solar-date {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .lunar-info {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .holiday-tag {
+            font-size: 0.7rem;
+            color: white;
+            background-color: var(--holiday-color);
+            padding: 1px 4px;
+            border-radius: 3px;
+            display: inline-block;
+            margin-top: 2px;
+        }
+
+        .term-tag {
+            font-size: 0.7rem;
+            color: white;
+            background-color: var(--weekend-color);
+            padding: 1px 4px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        .note-indicator {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            width: 8px;
+            height: 8px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+        }
+
+        /* Weekend Color */
+        .day-cell:nth-child(7n), .day-cell:nth-child(7n-1) {
+            color: var(--weekend-color);
+        }
+        
+        .day-cell:nth-child(7n) .solar-date, .day-cell:nth-child(7n-1) .solar-date {
+            color: inherit;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .modal h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .modal textarea {
+            width: 100%;
+            height: 100px;
+            margin: 10px 0;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn-danger {
+            background-color: #e74c3c;
+        }
+        
+        .btn-secondary {
+            background-color: #95a5a6;
+        }
+
+        .lunar-detail {
+            font-size: 0.85rem;
+            color: #555;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="io-controls">
+            <button class="btn btn-outline" onclick="prevMonth()"> &lt; 上個月</button>
+            <button class="btn btn-outline" onclick="nextMonth()"> 下個月 &gt;</button>
+            <button class="btn btn-outline" onclick="goToday()">今天</button>
+        </div>
+        
+        <div class="month-year-display" id="currentDateDisplay"></div>
+
+        <div class="io-controls">
+            <button class="btn" onclick="downloadData()">下載備份</button>
+            <input type="file" id="uploadInput" style="display: none;" onchange="importData(this)">
+            <button class="btn" onclick="document.getElementById('uploadInput').click()">還原備份</button>
+        </div>
+    </div>
+
+    <div class="calendar-grid" id="calendarGrid">
+        <div class="week-header">週一</div>
+        <div class="week-header">週二</div>
+        <div class="week-header">週三</div>
+        <div class="week-header">週四</div>
+        <div class="week-header">週五</div>
+        <div class="week-header" style="color: var(--weekend-color)">週六</div>
+        <div class="week-header" style="color: var(--weekend-color)">週日</div>
+        </div>
+</div>
+
+<div class="modal-overlay" id="noteModal">
+    <div class="modal">
+        <h3 id="modalTitle">編輯記事</h3>
+        <div id="modalLunarInfo" class="lunar-detail"></div>
+        <textarea id="noteInput" placeholder="在此輸入今日記事..."></textarea>
+        <div class="modal-buttons">
+            <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+            <button class="btn btn-danger" onclick="deleteNote()">刪除</button>
+            <button class="btn" onclick="saveNote()">儲存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // State
+    let currentYear = new Date().getFullYear();
+    let currentMonth = new Date().getMonth(); // 0-11
+    let notes = JSON.parse(localStorage.getItem('calendar_notes')) || {};
+    let selectedDateKey = null;
+
+    // Fixed Holidays (Solar) - Month-Day format
+    const solarHolidays = {
+        '01-01': '元旦',
+        '02-14': '情人節',
+        '02-28': '和平紀念日',
+        '04-04': '兒童節',
+        '05-01': '勞動節',
+        '10-10': '國慶日',
+        '12-25': '聖誕節'
+    };
+
+    // Lunar Holidays (Lunar Month-Day)
+    const lunarHolidaysMap = {
+        '01-01': '春節',
+        '01-15': '元宵節',
+        '05-05': '端午節',
+        '07-07': '七夕',
+        '07-15': '中元節',
+        '08-15': '中秋節',
+        '09-09': '重陽節',
+        '12-08': '臘八',
+        '12-24': '送神',
+    };
+
+    // Initialization
+    document.addEventListener('DOMContentLoaded', () => {
+        renderCalendar();
+    });
+
+    function renderCalendar() {
+        const grid = document.getElementById('calendarGrid');
+        const display = document.getElementById('currentDateDisplay');
+        
+        // Clear old days (keep headers usually, but here we rebuild or clear after headers)
+        // A safer way is to remove all elements after the 7th one (headers)
+        while (grid.children.length > 7) {
+            grid.removeChild(grid.lastChild);
+        }
+
+        display.textContent = `${currentYear}年 ${currentMonth + 1}月`;
+
+        // First day of the month
+        const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        
+        // Calculate padding days for "Monday Start"
+        // Standard getDay(): 0(Sun), 1(Mon)...6(Sat)
+        // We want: 0(Mon)...6(Sun)
+        // Transformation: (day + 6) % 7
+        const startDayIndex = (firstDayOfMonth.getDay() + 6) % 7; 
+
+        // Previous month filler
+        const prevMonthDays = new Date(currentYear, currentMonth, 0).getDate();
+        for (let i = startDayIndex - 1; i >= 0; i--) {
+            const dayDiv = document.createElement('div');
+            dayDiv.className = 'day-cell other-month';
+            dayDiv.textContent = prevMonthDays - i;
+            grid.appendChild(dayDiv);
+        }
+
+        // Current month days
+        const today = new Date();
+        for (let i = 1; i <= daysInMonth; i++) {
+            const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+            const dayDiv = document.createElement('div');
+            dayDiv.className = 'day-cell';
+            dayDiv.onclick = () => openModal(dateKey, i);
+
+            // Highlight Today
+            if (currentYear === today.getFullYear() && 
+                currentMonth === today.getMonth() && 
+                i === today.getDate()) {
+                dayDiv.classList.add('today');
+            }
+
+            // Solar Date
+            const dateSpan = document.createElement('div');
+            dateSpan.className = 'solar-date';
+            dateSpan.textContent = i;
+            dayDiv.appendChild(dateSpan);
+
+            // Lunar & Holiday Calculation
+            try {
+                const lunar = Lunar.fromSolar(Solar.fromYmd(currentYear, currentMonth + 1, i));
+                const lunarMonth = String(lunar.getMonth()).padStart(2, '0');
+                const lunarDay = String(lunar.getDay()).padStart(2, '0');
+                const lunarStr = lunar.getDayInChinese();
+                
+                // Container for info
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'lunar-info';
+                
+                let holidayText = '';
+                
+                // 1. Check Solar Holiday
+                const solarKey = `${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                if (solarHolidays[solarKey]) {
+                    const tag = document.createElement('span');
+                    tag.className = 'holiday-tag';
+                    tag.textContent = solarHolidays[solarKey];
+                    infoDiv.appendChild(tag);
+                }
+
+                // 2. Check Lunar Holiday
+                const lunarKey = `${lunarMonth}-${lunarDay}`;
+                if (lunarHolidaysMap[lunarKey]) {
+                    const tag = document.createElement('span');
+                    tag.className = 'holiday-tag';
+                    tag.textContent = lunarHolidaysMap[lunarKey];
+                    infoDiv.appendChild(tag);
+                }
+                
+                // 3. Check Lunar Holiday - 除夕 (Last day of 12th lunar month)
+                // Note: Library handles complexity, but a simple check:
+                if (lunar.getMonth() === 12 && lunar.getDay() === new Date(currentYear, currentMonth + 1, 0).getDate()) { 
+                    // This is a rough check, better use library logic for "Eve" if available
+                    // Simpler: Check if tomorrow is Lunar 01-01
+                    const nextDay = Lunar.fromSolar(Solar.fromYmd(currentYear, currentMonth + 1, i + 1));
+                    if (nextDay.getMonth() === 1 && nextDay.getDay() === 1) {
+                         const tag = document.createElement('span');
+                        tag.className = 'holiday-tag';
+                        tag.textContent = "除夕";
+                        infoDiv.appendChild(tag);
+                    }
+                }
+
+                // 4. Solar Terms (節氣)
+                const term = lunar.getJieQi();
+                if (term) {
+                    const termTag = document.createElement('span');
+                    termTag.className = 'term-tag';
+                    termTag.textContent = term;
+                    infoDiv.appendChild(termTag);
+                }
+
+                // Lunar Date Text
+                const lunarText = document.createElement('div');
+                lunarText.textContent = lunarStr;
+                infoDiv.appendChild(lunarText);
+                
+                dayDiv.appendChild(infoDiv);
+
+            } catch (e) {
+                console.error("Lunar calc error", e);
+            }
+
+            // Note Indicator
+            if (notes[dateKey]) {
+                const dot = document.createElement('div');
+                dot.className = 'note-indicator';
+                dayDiv.appendChild(dot);
+            }
+
+            grid.appendChild(dayDiv);
+        }
+    }
+
+    // Navigation
+    function prevMonth() {
+        currentMonth--;
+        if (currentMonth < 0) {
+            currentMonth = 11;
+            currentYear--;
+        }
+        renderCalendar();
+    }
+
+    function nextMonth() {
+        currentMonth++;
+        if (currentMonth > 11) {
+            currentMonth = 0;
+            currentYear++;
+        }
+        renderCalendar();
+    }
+
+    function goToday() {
+        const now = new Date();
+        currentYear = now.getFullYear();
+        currentMonth = now.getMonth();
+        renderCalendar();
+    }
+
+    // Modal & CRUD
+    function openModal(dateKey, day) {
+        selectedDateKey = dateKey;
+        const [y, m, d] = dateKey.split('-').map(Number);
+        
+        // Calculate detailed Lunar Info for modal
+        let lunarDetails = "";
+        try {
+            const lunar = Lunar.fromSolar(Solar.fromYmd(y, m, d));
+            lunarDetails = `
+                農曆：${lunar.getYearInGanZhi()}年 ${lunar.getMonthInChinese()}月 ${lunar.getDayInChinese()}<br>
+                宜：${lunar.getDayYi().join(', ')}<br>
+                忌：${lunar.getDayJi().join(', ')}<br>
+                沖煞：${lunar.getDayChongDesc()}
+            `;
+        } catch(e) {}
+
+        document.getElementById('modalTitle').textContent = `${y}年${m}月${d}日 記事`;
+        document.getElementById('modalLunarInfo').innerHTML = lunarDetails;
+        document.getElementById('noteInput').value = notes[dateKey] || '';
+        document.getElementById('noteModal').style.display = 'flex';
+        document.getElementById('noteInput').focus();
+    }
+
+    function closeModal() {
+        document.getElementById('noteModal').style.display = 'none';
+        selectedDateKey = null;
+    }
+
+    function saveNote() {
+        const content = document.getElementById('noteInput').value.trim();
+        if (content) {
+            notes[selectedDateKey] = content;
+        } else {
+            delete notes[selectedDateKey];
+        }
+        localStorage.setItem('calendar_notes', JSON.stringify(notes));
+        renderCalendar();
+        closeModal();
+    }
+
+    function deleteNote() {
+        if (confirm('確定要刪除這天的記事嗎？')) {
+            delete notes[selectedDateKey];
+            localStorage.setItem('calendar_notes', JSON.stringify(notes));
+            renderCalendar();
+            closeModal();
+        }
+    }
+
+    // Close modal if clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('noteModal');
+        if (event.target == modal) {
+            closeModal();
+        }
+    }
+
+    // Backup & Restore
+    function downloadData() {
+        const dataStr = JSON.stringify(notes, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = `calendar_backup_${new Date().toISOString().slice(0,10)}.json`;
+
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+    }
+
+    function importData(inputElement) {
+        const file = inputElement.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedNotes = JSON.parse(e.target.result);
+                if (typeof importedNotes === 'object') {
+                    if(confirm('這將覆蓋現有的記事資料，確定要還原嗎？')) {
+                        notes = importedNotes;
+                        localStorage.setItem('calendar_notes', JSON.stringify(notes));
+                        renderCalendar();
+                        alert('還原成功！');
+                    }
+                } else {
+                    alert('檔案格式錯誤');
+                }
+            } catch (err) {
+                alert('無法讀取檔案，請確認是有效的 JSON 備份檔。');
+            }
+            // Clear input so same file can be selected again if needed
+            inputElement.value = '';
+        };
+        reader.readAsText(file);
+    }
+</script>
+
+</body>
+</html>
